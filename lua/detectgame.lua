@@ -14,17 +14,27 @@ BOOL EnumWindows(WNDENUMPROC lpEnumFunc, LPARAM lParam);
 local C = ffi.C
 
 local function checkClassName(hwnd, params)
-	local parentPID, parentThread = window.getParentProcessID(hwnd)
-	local handle = winprocess.open(parentPID)
-	local imageName = window.getProcessImageName(handle)
-	local target = params.targetProcessName
-	local result = luautil.stringEndsWith(imageName, target, true)
-	if not result then
-		winprocess.close(handle)
-		return nil
-	else
-		return {
-			gameHwnd = hwnd,
+        local parentPID, parentThread = window.getParentProcessID(hwnd)
+        local handle = winprocess.open(parentPID)
+        local imageName = window.getProcessImageName(handle)
+        local targetProcessName = params.targetProcessName
+        local targets = targetProcessName
+        if type(targetProcessName) == "string" then
+                targets = { targetProcessName }
+        end
+        local matched = false
+        for _, target in ipairs(targets) do
+                if luautil.stringEndsWith(imageName, target, true) then
+                        matched = true
+                        break
+                end
+        end
+        if not matched then
+                winprocess.close(handle)
+                return nil
+        else
+                return {
+                        gameHwnd = hwnd,
 			gameHandle = handle,
 			gamePID = parentPID,
 			module = params.module,
@@ -147,12 +157,15 @@ local PS2Game = GameTemplate:new({
 -- games are detected and prioritized in the order listed here;
 -- if two games are running, the game that appears first in this list wins
 local detectedGames = {
-	SteamOrGOGGame:new({
-		module = "steam.kof98um",
-		prettyName = "King of Fighters '98 Ultimate Match Final Edition",
-		targetWindowTitle = "King of Fighters '98 Ultimate Match Final Edition",
-		targetProcessName = "KingOfFighters98UM.exe",
-	}),
+        SteamOrGOGGame:new({
+                module = "steam.kof98um",
+                prettyName = "King of Fighters '98 Ultimate Match Final Edition",
+                targetWindowTitle = "King of Fighters '98 Ultimate Match Final Edition",
+                targetProcessName = {
+                        "KingOfFighters98UM.exe",
+                        "KingOfFighters98UM_x64.exe",
+                },
+        }),
 	SteamOrGOGGame:new({
 		module = "steam.kof2002um",
 		prettyName = "King of Fighters 2002 Unlimited Match",

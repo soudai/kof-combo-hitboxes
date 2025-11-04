@@ -1,0 +1,76 @@
+name: Build Windows x64 Release
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and publish x64 release
+    runs-on: windows-2019
+    env:
+      EXE_NAME: kof-hitboxes_x64.exe
+      RELEASE_TAG: kof-combo-hitboxes-x64-${{ github.run_number }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up MSYS2 environment
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          msystem: MINGW64
+          install: |
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pkgconf
+
+      - name: Build LuaJIT (x64)
+        shell: msys2 {0}
+        run: |
+          cd lib/luajit/src
+          mingw32-make clean
+          mingw32-make CC="x86_64-w64-mingw32-gcc" HOST_CC="gcc -m64" CROSS=x86_64-w64-mingw32- BUILDMODE=static TARGET_SYS=Windows
+
+      - name: Build KOF Combo Hitbox Viewer (x64)
+        shell: msys2 {0}
+        run: |
+          mingw32-make clean
+          mingw32-make EXE_NAME=${EXE_NAME} CC="x86_64-w64-mingw32-gcc"
+
+      - name: Prepare release artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item -Path $env:EXE_NAME -Destination dist/
+          Copy-Item -Path default.ini -Destination dist/
+          Compress-Archive -Path dist/* -DestinationPath dist/kof-combo-hitboxes-x64.zip -Force
+
+      - name: Create GitHub release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          release_name: "Automated Windows x64 build #${{ github.run_number }}"
+          body: |
+            Automated Windows x64 build generated from commit ${{ github.sha }}.
+          draft: false
+          prerelease: false
+
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/kof-combo-hitboxes-x64.zip
+          asset_name: kof-combo-hitboxes-x64.zip
+          asset_content_type: application/zip
