@@ -3,8 +3,7 @@ name: Build Windows x64 Release
 on:
   push:
     branches:
-      - main
-
+      - master
 permissions:
   contents: write
 
